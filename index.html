@@ -3,50 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V47 - Neural Sync & Video Fixed</title>
+    <title>Discord Portrait V48 - Final Production Build</title>
     <style>
-        /* Existing V41/V46 Styles preserved exactly */
-        :root { --bg-color: #36393f; --text-color: #dcddde; --timestamp-color: #72767d; --blurple: #5865f2; --online-green: #3ba55d; }
-        html, body { margin: 0; padding: 0; background: #111; color: white; font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        :root {
+            --bg-color: #36393f;
+            --text-color: #dcddde;
+            --timestamp-color: #72767d;
+            --blurple: #5865f2;
+            --online-green: #3ba55d;
+        }
+
+        html, body {
+            margin: 0; padding: 0;
+            background: #111; color: white;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
         #render-area { flex: 1; display: flex; justify-content: center; align-items: center; width: 100%; overflow: hidden; }
         #scale-wrapper { transform-origin: center center; display: flex; transition: transform 0.8s; }
-        #render-frame { width: 1080px; height: 1920px; background: var(--bg-color); position: relative; display: flex; flex-direction: column; overflow: hidden; }
-        #chat-scroller { flex: 1; padding: 60px 50px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; scroll-behavior: smooth; }
+        
+        #render-frame {
+            width: 1080px; height: 1920px;
+            background: var(--bg-color);
+            position: relative; display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        #chat-scroller { flex: 1; padding: 60px 50px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; z-index: 5; scroll-behavior: smooth; }
+
         .msg-block { display: flex; margin-top: 45px; animation: fadeIn 0.15s; position: relative; }
         .msg-block.compact { margin-top: 8px; padding-left: 110px; }
+        
         .avatar-container { position: relative; width: 95px; height: 95px; margin-right: 20px; flex-shrink: 0; }
         .avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #fff; }
         .status-dot { position: absolute; bottom: 2px; right: 2px; width: 24px; height: 24px; background-color: var(--online-green); border-radius: 50%; border: 6px solid var(--bg-color); }
+
+        .msg-body { flex: 1; max-width: 850px; }
+        .user-header { display: flex; align-items: center; margin-bottom: 5px; }
         .username { font-size: 42px; font-weight: bold; margin-right: 15px; } 
         .timestamp { font-size: 26px; color: var(--timestamp-color); }
         .text-content { font-size: 44px; color: var(--text-color); line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; margin: 0; }
+
+        /* Real Ratio Media */
         .media-thumbnail { margin-top: 20px; border-radius: 20px; width: 100%; height: auto; border: 2px solid rgba(255,255,255,0.05); }
+
         #typing-box { padding: 0 115px 20px; font-size: 32px; color: var(--timestamp-color); display: none; }
         #countdown-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; justify-content: center; align-items: center; font-size: 300px; font-weight: bold; color: var(--blurple); }
+
         #overlay, .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; }
+        .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; max-height: 80vh; overflow-y: auto;}
         textarea { width: 100%; height: 300px; background: #40444b; color: white; border-radius: 10px; padding: 20px; font-size: 24px; border:none; margin-bottom: 20px; }
         button { padding: 20px 40px; font-size: 24px; font-weight: bold; cursor: pointer; border-radius: 12px; border: none; background: var(--blurple); color: white; width: 100%; margin-bottom: 10px; }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
     <div id="countdown-overlay">5</div>
+
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & Video Recorder</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: This is the final version!"></textarea>
+            <h2>📜 Script & High-Sync Engine</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: I sound human now... <media:test.png>"></textarea>
             <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
-            <h2>🎙️ High-Quality Voice Setup</h2>
-            <p id="pfp-status">⏳ Processing Character Personalities...</p>
-            <div id="media-list" style="margin-bottom: 20px;"></div>
-            <button id="startBtn" onclick="initProductionAndStart()" style="background:#3ba55d; display:none;">🎬 Start Video Recording</button>
+            <h2>🖼️ Asset Preloader</h2>
+            <p id="pfp-status">⏳ Processing Characters & Voices...</p>
+            <div id="media-list" style="margin-bottom: 20px; text-align: left;"></div>
+            <button id="startBtn" onclick="initProductionFlow()" style="background:#3ba55d; display:none;">🚀 Start Recording Mode</button>
         </div>
     </div>
 
@@ -72,9 +103,9 @@
         const uniqueUsers = new Set();
         let lastUser = null;
 
-        // Recorder & Speech Engine Vars
-        let mediaRecorder, recordedChunks = [];
-        let audioCtx, audioDest;
+        // Audio/Video System Global State
+        let audioCtx, audioDest, mediaRecorder, recordedChunks = [];
+        let srcMsgNode, srcVidNode; // Prevent multiple connection error
         let voices = [];
         let userVoiceConfig = {};
         let audioMap = {};
@@ -94,76 +125,70 @@
             });
         }
 
-        // --- CHARACTER VOICE MAPPING ---
-        function assignVoiceProfiles() {
-            // Priority: Microsoft Natural -> Google Neural -> Standard
-            const pool = voices.filter(v => v.lang.includes('en'));
-            const males = pool.filter(v => v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Neural'));
-            const females = pool.filter(v => v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Google'));
-            
+        function assignPersonality() {
+            const males = voices.filter(v => (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Neural')) && v.lang.includes('en'));
+            const females = voices.filter(v => (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Google')) && v.lang.includes('en'));
             let mIdx = 0, fIdx = 0;
+
             uniqueUsers.forEach(user => {
                 const name = user.toLowerCase();
                 let config = { pitch: 1.0, rate: 1.0 };
                 const isFemale = (name === 'lolly' || name === 'dozey');
-                const voicePool = isFemale ? females : males;
+                const pool = isFemale ? females : males;
+                config.voice = pool.length > 0 ? pool[isFemale ? (fIdx++ % pool.length) : (mIdx++ % pool.length)] : voices[0];
                 
-                config.voice = voicePool.length > 0 ? voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)] : pool[0];
-
-                if (name === 'delulu') { config.pitch = 1.2; config.rate = 1.05; }
-                else if (name === 'sober') { config.pitch = 0.8; config.rate = 0.85; }
+                if (name === 'delulu') { config.pitch = 1.25; config.rate = 1.1; }
+                else if (name === 'sober') { config.pitch = 0.75; config.rate = 0.8; }
                 else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; }
-                
                 userVoiceConfig[user] = config;
             });
-        }
-
-        // --- TEXT CLEANING FOR SPEECH ---
-        function cleanTextForSpeech(text) {
-            return text
-                .replace(/\.\.\./g, ', ') // Replace dots with comma for pause
-                .replace(/[^\x00-\x7F]/g, "") // Remove Emojis/Non-ASCII characters
-                .replace(/<media:.*?>/g, "") // Remove media tags
-                .trim();
         }
 
         function scanAssets() {
             const text = document.getElementById('scriptInput').value;
             script = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            const mediaRegex = /<media:\s*(.*?)\s*>/g;
+            const mediaFiles = new Set();
             uniqueUsers.clear();
+
             script.forEach(line => {
+                let m; while ((m = mediaRegex.exec(line)) !== null) mediaFiles.add(m[1]);
                 const userMatch = line.match(/\[(.*?)\]:/);
                 if (userMatch) uniqueUsers.add(userMatch[1].trim());
             });
+
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('asset-modal').style.display = 'flex';
+            
+            const list = document.getElementById('media-list');
+            list.innerHTML = "";
+            mediaFiles.forEach(file => {
+                const div = document.createElement('div');
+                div.style.marginBottom = "10px";
+                div.innerHTML = `<label style="font-size:18px;">Upload <b>${file}</b>:</label><br><input type="file" onchange="assetCache['${file}'] = URL.createObjectURL(this.files[0])">`;
+                list.appendChild(div);
+            });
             document.getElementById('startBtn').style.display = 'block';
         }
 
-        function cacheFile(name, input) {
-            const file = input.files[0];
-            if (file) assetCache[name] = URL.createObjectURL(file);
-        }
-
-        // --- PRODUCTION INITIALIZATION (VIDEO + AUDIO RECORDING) ---
-        async function initProductionAndStart() {
+        async function initProductionFlow() {
             try {
-                // 1. Setup Audio Context for Internal Sound Capture
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                audioDest = audioCtx.createMediaStreamDestination();
-                
-                // Route message and player sounds
-                const sourceMsg = audioCtx.createMediaElementSource(messageSound);
-                sourceMsg.connect(audioDest); sourceMsg.connect(audioCtx.destination);
-                
-                const vidPlayer = document.getElementById('overlay-player');
-                const sourceVid = audioCtx.createMediaElementSource(vidPlayer);
-                sourceVid.connect(audioDest); sourceVid.connect(audioCtx.destination);
+                // Initialize Audio Context Only Once
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    audioDest = audioCtx.createMediaStreamDestination();
+                    
+                    srcMsgNode = audioCtx.createMediaElementSource(messageSound);
+                    srcMsgNode.connect(audioDest); srcMsgNode.connect(audioCtx.destination);
+                    
+                    const vidPlayer = document.getElementById('overlay-player');
+                    srcVidNode = audioCtx.createMediaElementSource(vidPlayer);
+                    srcVidNode.connect(audioDest); srcVidNode.connect(audioCtx.destination);
+                }
 
-                // 2. Capture Video Stream (User Screen Selection)
+                // Screen + System Audio Capture
                 const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                
-                // 3. Combine Screen Video + Internal Audio Dest Stream
                 const combinedStream = new MediaStream([
                     ...screenStream.getVideoTracks(),
                     ...audioDest.stream.getAudioTracks()
@@ -174,42 +199,48 @@
                 mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
                 mediaRecorder.onstop = exportVideo;
 
-                // 4. Final Prep
+                // Prepare Voices
                 await initSpeech();
-                assignVoiceProfiles();
+                assignPersonality();
                 
                 // Pre-cache utterances
                 for (let i = 0; i < script.length; i++) {
-                    const match = script[i].match(/\[(.*?)\]:/);
+                    const match = script[i].match(/\[(.*?)\]:\s*(.*)/);
                     if (match) {
                         const user = match[1].trim();
-                        const content = script[i].split(']:')[1];
-                        const cleanText = cleanTextForSpeech(content);
-                        if (cleanText) {
-                            const utterance = new SpeechSynthesisUtterance(cleanText);
-                            const config = userVoiceConfig[user];
-                            utterance.voice = config.voice;
-                            utterance.pitch = config.pitch;
-                            utterance.rate = config.rate;
-                            audioMap[i] = utterance;
+                        const text = match[2].replace(/<media:.*?>/g, "").replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").trim();
+                        if (text) {
+                            const utt = new SpeechSynthesisUtterance(text);
+                            const cfg = userVoiceConfig[user];
+                            utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate;
+                            audioMap[i] = utt;
                         }
                     }
                 }
 
-                document.getElementById('asset-modal').style.display = 'none';
-                startCountdown();
-
-            } catch (err) {
-                alert("Recording failed or permission denied: " + err.message);
-            }
+                preloadPfpsAndStart();
+            } catch (err) { alert("Production Error: " + err.message); }
         }
 
         function exportVideo() {
             const blob = new Blob(recordedChunks, { type: 'video/webm' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `discord_production_${Date.now()}.webm`;
-            a.click();
+            a.download = `discord_vid_${Date.now()}.webm`; a.click();
+        }
+
+        async function preloadPfpsAndStart() {
+            const promises = Array.from(uniqueUsers).map(u => new Promise(res => {
+                const img = new Image();
+                img.onload = res; img.onerror = () => {
+                    const low = new Image(); low.onload = res; low.onerror = res;
+                    low.src = `assets/pfps/${u.toLowerCase()}.png`;
+                };
+                img.src = `assets/pfps/${u}.png`;
+            }));
+            await Promise.all(promises);
+            document.getElementById('asset-modal').style.display = 'none';
+            startCountdown();
         }
 
         function startCountdown() {
@@ -222,15 +253,6 @@
                 if (timer > 0) overlay.innerText = timer;
                 else { clearInterval(int); overlay.style.display = 'none'; mediaRecorder.start(); autoPlay(); }
             }, 1000);
-        }
-
-        async function speakCached(idx) {
-            return new Promise(resolve => {
-                const utterance = audioMap[idx];
-                if (!utterance) return resolve();
-                utterance.onend = resolve; utterance.onerror = resolve;
-                speechSynthesis.speak(utterance);
-            });
         }
 
         async function render(idx) {
@@ -270,7 +292,14 @@
                 html += `<div class="text-content">${content}</div></div>`;
                 block.innerHTML += html;
                 document.getElementById('chat-scroller').appendChild(block);
-                await speakCached(idx);
+                
+                // Play Cached Voice
+                await new Promise(resolve => {
+                    const utt = audioMap[idx];
+                    if (!utt) return resolve();
+                    utt.onend = resolve; utt.onerror = resolve;
+                    speechSynthesis.speak(utt);
+                });
                 await new Promise(r => setTimeout(r, 600));
             }
             document.getElementById('chat-scroller').scrollTo({ top: document.getElementById('chat-scroller').scrollHeight, behavior: 'smooth' });
