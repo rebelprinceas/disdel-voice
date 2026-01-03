@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V48 - Final Production Build</title>
+    <title>Discord Portrait V50 - True MP3 & Neural Voices</title>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <style>
         :root {
             --bg-color: #36393f;
@@ -46,7 +47,7 @@
         .timestamp { font-size: 26px; color: var(--timestamp-color); }
         .text-content { font-size: 44px; color: var(--text-color); line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; margin: 0; }
 
-        /* Real Ratio Media */
+        /* Media: Real Ratio restored */
         .media-thumbnail { margin-top: 20px; border-radius: 20px; width: 100%; height: auto; border: 2px solid rgba(255,255,255,0.05); }
 
         #typing-box { padding: 0 115px 20px; font-size: 32px; color: var(--timestamp-color); display: none; }
@@ -66,18 +67,18 @@
 
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & High-Sync Engine</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: I sound human now... <media:test.png>"></textarea>
-            <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
+            <h2>📜 Script & True MP3 Engine</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: This is V50 with MP3!"></textarea>
+            <button onclick="scanAssets()">Scan Media & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
             <h2>🖼️ Asset Preloader</h2>
-            <p id="pfp-status">⏳ Processing Characters & Voices...</p>
+            <p id="pfp-status">⏳ Tuning Neural Personalities...</p>
             <div id="media-list" style="margin-bottom: 20px; text-align: left;"></div>
-            <button id="startBtn" onclick="initProductionFlow()" style="background:#3ba55d; display:none;">🚀 Start Recording Mode</button>
+            <button id="startBtn" onclick="initProductionAndStart()" style="background:#3ba55d; display:none;">🚀 Start Production</button>
         </div>
     </div>
 
@@ -103,9 +104,10 @@
         const uniqueUsers = new Set();
         let lastUser = null;
 
-        // Audio/Video System Global State
-        let audioCtx, audioDest, mediaRecorder, recordedChunks = [];
-        let srcMsgNode, srcVidNode; // Prevent multiple connection error
+        // Audio & MP3 Encoder Vars
+        let audioCtx, audioDest, processorNode;
+        let mp3Encoder, mp3Data = [];
+        let srcMsgNode, srcVidNode; 
         let voices = [];
         let userVoiceConfig = {};
         let audioMap = {};
@@ -125,58 +127,58 @@
             });
         }
 
-        function assignPersonality() {
-            const males = voices.filter(v => (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Neural')) && v.lang.includes('en'));
-            const females = voices.filter(v => (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Google')) && v.lang.includes('en'));
+        // Character Mapping
+        function assignVoiceProfiles() {
+            const pool = voices.filter(v => v.lang.includes('en'));
+            const males = pool.filter(v => v.name.includes('Microsoft') && (v.name.includes('Male') || v.name.includes('Neural')));
+            const females = pool.filter(v => v.name.includes('Microsoft') && (v.name.includes('Female') || v.name.includes('Aria')));
+            
             let mIdx = 0, fIdx = 0;
-
             uniqueUsers.forEach(user => {
                 const name = user.toLowerCase();
                 let config = { pitch: 1.0, rate: 1.0 };
                 const isFemale = (name === 'lolly' || name === 'dozey');
-                const pool = isFemale ? females : males;
-                config.voice = pool.length > 0 ? pool[isFemale ? (fIdx++ % pool.length) : (mIdx++ % pool.length)] : voices[0];
-                
-                if (name === 'delulu') { config.pitch = 1.25; config.rate = 1.1; }
-                else if (name === 'sober') { config.pitch = 0.75; config.rate = 0.8; }
-                else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; }
+                const voicePool = isFemale ? (females.length ? females : pool) : (males.length ? males : pool);
+                config.voice = voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)];
+
+                if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; }
+                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.85; }
                 userVoiceConfig[user] = config;
             });
+        }
+
+        function cleanText(text) {
+            return text.replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").replace(/<media:.*?>/g, "").trim();
         }
 
         function scanAssets() {
             const text = document.getElementById('scriptInput').value;
             script = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            
             const mediaRegex = /<media:\s*(.*?)\s*>/g;
             const mediaFiles = new Set();
             uniqueUsers.clear();
-
             script.forEach(line => {
                 let m; while ((m = mediaRegex.exec(line)) !== null) mediaFiles.add(m[1]);
                 const userMatch = line.match(/\[(.*?)\]:/);
                 if (userMatch) uniqueUsers.add(userMatch[1].trim());
             });
-
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('asset-modal').style.display = 'flex';
-            
             const list = document.getElementById('media-list');
             list.innerHTML = "";
             mediaFiles.forEach(file => {
                 const div = document.createElement('div');
                 div.style.marginBottom = "10px";
-                div.innerHTML = `<label style="font-size:18px;">Upload <b>${file}</b>:</label><br><input type="file" onchange="assetCache['${file}'] = URL.createObjectURL(this.files[0])">`;
+                div.innerHTML = `<label>Upload <b>${file}</b>:</label><br><input type="file" onchange="assetCache['${file}'] = URL.createObjectURL(this.files[0])">`;
                 list.appendChild(div);
             });
             document.getElementById('startBtn').style.display = 'block';
         }
 
-        async function initProductionFlow() {
+        async function initProductionAndStart() {
             try {
-                // Initialize Audio Context Only Once
                 if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
                     audioDest = audioCtx.createMediaStreamDestination();
                     
                     srcMsgNode = audioCtx.createMediaElementSource(messageSound);
@@ -187,30 +189,17 @@
                     srcVidNode.connect(audioDest); srcVidNode.connect(audioCtx.destination);
                 }
 
-                // Screen + System Audio Capture
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-                const combinedStream = new MediaStream([
-                    ...screenStream.getVideoTracks(),
-                    ...audioDest.stream.getAudioTracks()
-                ]);
-
-                mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm; codecs=vp9' });
-                recordedChunks = [];
-                mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
-                mediaRecorder.onstop = exportVideo;
-
-                // Prepare Voices
                 await initSpeech();
-                assignPersonality();
-                
-                // Pre-cache utterances
+                assignVoiceProfiles();
+
+                // Pre-cache voices
                 for (let i = 0; i < script.length; i++) {
-                    const match = script[i].match(/\[(.*?)\]:\s*(.*)/);
+                    const match = script[i].match(/\[(.*?)\]:/);
                     if (match) {
                         const user = match[1].trim();
-                        const text = match[2].replace(/<media:.*?>/g, "").replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").trim();
-                        if (text) {
-                            const utt = new SpeechSynthesisUtterance(text);
+                        const txt = cleanText(script[i].split(']:')[1]);
+                        if (txt) {
+                            const utt = new SpeechSynthesisUtterance(txt);
                             const cfg = userVoiceConfig[user];
                             utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate;
                             audioMap[i] = utt;
@@ -218,15 +207,32 @@
                     }
                 }
 
+                // --- MP3 RECORDER SETUP ---
+                mp3Encoder = new lamejs.Mp3Encoder(1, 44100, 128);
+                mp3Data = [];
+                processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+                processorNode.onaudioprocess = (e) => {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcmData = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+                    }
+                    const mp3buf = mp3Encoder.encodeBuffer(pcmData);
+                    if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+                };
+
                 preloadPfpsAndStart();
-            } catch (err) { alert("Production Error: " + err.message); }
+            } catch (err) { alert("Initialization Error: " + err.message); }
         }
 
-        function exportVideo() {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        function exportMp3() {
+            const mp3buf = mp3Encoder.flush();
+            if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+            const blob = new Blob(mp3Data, { type: 'audio/mp3' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `discord_vid_${Date.now()}.webm`; a.click();
+            a.download = `discord_audio_${Date.now()}.mp3`;
+            a.click();
         }
 
         async function preloadPfpsAndStart() {
@@ -251,7 +257,13 @@
             const int = setInterval(() => {
                 timer--;
                 if (timer > 0) overlay.innerText = timer;
-                else { clearInterval(int); overlay.style.display = 'none'; mediaRecorder.start(); autoPlay(); }
+                else { 
+                    clearInterval(int); overlay.style.display = 'none'; 
+                    // Start MP3 capture
+                    processorNode.connect(audioCtx.destination);
+                    audioDest.connect(processorNode);
+                    autoPlay(); 
+                }
             }, 1000);
         }
 
@@ -293,7 +305,6 @@
                 block.innerHTML += html;
                 document.getElementById('chat-scroller').appendChild(block);
                 
-                // Play Cached Voice
                 await new Promise(resolve => {
                     const utt = audioMap[idx];
                     if (!utt) return resolve();
@@ -308,7 +319,9 @@
 
         async function autoPlay() {
             for (let i = 0; i < script.length; i++) await render(i);
-            mediaRecorder.stop();
+            // Stop MP3 capture and export
+            processorNode.disconnect();
+            exportMp3();
         }
 
         function adjustScale() {
