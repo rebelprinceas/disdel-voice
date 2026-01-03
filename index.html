@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V50 - True MP3 & Neural Voices</title>
+    <title>Discord Portrait V51 - Neural MP3 Build</title>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <style>
         :root {
@@ -47,7 +47,7 @@
         .timestamp { font-size: 26px; color: var(--timestamp-color); }
         .text-content { font-size: 44px; color: var(--text-color); line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; margin: 0; }
 
-        /* Media: Real Ratio restored */
+        /* Real Ratio Media Fix */
         .media-thumbnail { margin-top: 20px; border-radius: 20px; width: 100%; height: auto; border: 2px solid rgba(255,255,255,0.05); }
 
         #typing-box { padding: 0 115px 20px; font-size: 32px; color: var(--timestamp-color); display: none; }
@@ -57,6 +57,10 @@
         .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; max-height: 80vh; overflow-y: auto;}
         textarea { width: 100%; height: 300px; background: #40444b; color: white; border-radius: 10px; padding: 20px; font-size: 24px; border:none; margin-bottom: 20px; }
         button { padding: 20px 40px; font-size: 24px; font-weight: bold; cursor: pointer; border-radius: 12px; border: none; background: var(--blurple); color: white; width: 100%; margin-bottom: 10px; }
+        
+        #progress-container { display: none; margin-top: 20px; }
+        #progress-bar { width: 100%; background: #444; height: 10px; border-radius: 5px; }
+        #progress-fill { width: 0%; height: 100%; background: var(--online-green); border-radius: 5px; transition: width 0.3s; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
     </style>
@@ -67,17 +71,18 @@
 
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & True MP3 Engine</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: This is V50 with MP3!"></textarea>
-            <button onclick="scanAssets()">Scan Media & Prepare ➡️</button>
+            <h2>📜 Script & Neural MP3 Engine</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: Everything is fixed now!"></textarea>
+            <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
             <h2>🖼️ Asset Preloader</h2>
-            <p id="pfp-status">⏳ Tuning Neural Personalities...</p>
+            <p id="pfp-status">⏳ Processing Neural Voices...</p>
             <div id="media-list" style="margin-bottom: 20px; text-align: left;"></div>
+            <div id="progress-container"><div id="progress-bar"><div id="progress-fill"></div></div></div>
             <button id="startBtn" onclick="initProductionAndStart()" style="background:#3ba55d; display:none;">🚀 Start Production</button>
         </div>
     </div>
@@ -127,11 +132,11 @@
             });
         }
 
-        // Character Mapping
+        // --- Character-Specific Tuning ---
         function assignVoiceProfiles() {
             const pool = voices.filter(v => v.lang.includes('en'));
-            const males = pool.filter(v => v.name.includes('Microsoft') && (v.name.includes('Male') || v.name.includes('Neural')));
-            const females = pool.filter(v => v.name.includes('Microsoft') && (v.name.includes('Female') || v.name.includes('Aria')));
+            const males = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Andrew')));
+            const females = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Jenny')));
             
             let mIdx = 0, fIdx = 0;
             uniqueUsers.forEach(user => {
@@ -139,15 +144,20 @@
                 let config = { pitch: 1.0, rate: 1.0 };
                 const isFemale = (name === 'lolly' || name === 'dozey');
                 const voicePool = isFemale ? (females.length ? females : pool) : (males.length ? males : pool);
+                
                 config.voice = voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)];
 
+                // Personalized Personality logic
                 if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; }
-                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.85; }
+                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.8; }
+                else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; }
+                else if (name === 'squint' || name === 'solulu') { config.pitch = 0.9; config.rate = 1.1; }
+                
                 userVoiceConfig[user] = config;
             });
         }
 
-        function cleanText(text) {
+        function cleanTextForSpeech(text) {
             return text.replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").replace(/<media:.*?>/g, "").trim();
         }
 
@@ -157,13 +167,16 @@
             const mediaRegex = /<media:\s*(.*?)\s*>/g;
             const mediaFiles = new Set();
             uniqueUsers.clear();
+
             script.forEach(line => {
                 let m; while ((m = mediaRegex.exec(line)) !== null) mediaFiles.add(m[1]);
                 const userMatch = line.match(/\[(.*?)\]:/);
                 if (userMatch) uniqueUsers.add(userMatch[1].trim());
             });
+
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('asset-modal').style.display = 'flex';
+            
             const list = document.getElementById('media-list');
             list.innerHTML = "";
             mediaFiles.forEach(file => {
@@ -189,15 +202,18 @@
                     srcVidNode.connect(audioDest); srcVidNode.connect(audioCtx.destination);
                 }
 
+                document.getElementById('progress-container').style.display = 'block';
+                const progressFill = document.getElementById('progress-fill');
+
                 await initSpeech();
                 assignVoiceProfiles();
 
                 // Pre-cache voices
                 for (let i = 0; i < script.length; i++) {
-                    const match = script[i].match(/\[(.*?)\]:/);
+                    const match = script[i].match(/\[(.*?)\]:\s*(.*)/);
                     if (match) {
                         const user = match[1].trim();
-                        const txt = cleanText(script[i].split(']:')[1]);
+                        const txt = cleanTextForSpeech(match[2]);
                         if (txt) {
                             const utt = new SpeechSynthesisUtterance(txt);
                             const cfg = userVoiceConfig[user];
@@ -205,9 +221,10 @@
                             audioMap[i] = utt;
                         }
                     }
+                    progressFill.style.width = `${((i+1)/script.length)*100}%`;
                 }
 
-                // --- MP3 RECORDER SETUP ---
+                // MP3 Encoder setup
                 mp3Encoder = new lamejs.Mp3Encoder(1, 44100, 128);
                 mp3Data = [];
                 processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -222,7 +239,7 @@
                 };
 
                 preloadPfpsAndStart();
-            } catch (err) { alert("Initialization Error: " + err.message); }
+            } catch (err) { alert("Production Error: " + err.message); }
         }
 
         function exportMp3() {
@@ -231,8 +248,7 @@
             const blob = new Blob(mp3Data, { type: 'audio/mp3' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `discord_audio_${Date.now()}.mp3`;
-            a.click();
+            a.download = `discord_audio_${Date.now()}.mp3`; a.click();
         }
 
         async function preloadPfpsAndStart() {
@@ -259,7 +275,6 @@
                 if (timer > 0) overlay.innerText = timer;
                 else { 
                     clearInterval(int); overlay.style.display = 'none'; 
-                    // Start MP3 capture
                     processorNode.connect(audioCtx.destination);
                     audioDest.connect(processorNode);
                     autoPlay(); 
@@ -276,6 +291,7 @@
             const content = match[2].trim();
             const mediaMatch = content.match(/<media:\s*(.*?)\s*>/);
             const isCompact = (lastUser && lastUser.toLowerCase() === user.toLowerCase());
+            const chatScroller = document.getElementById('chat-scroller');
 
             if (!isCompact) {
                 document.getElementById('typer-name').innerText = user;
@@ -298,12 +314,12 @@
             if (mediaMatch) {
                 html += `<img class="media-thumbnail" src="${assetCache[mediaMatch[1]] || ''}">`;
                 block.innerHTML += html + `</div>`;
-                document.getElementById('chat-scroller').appendChild(block);
+                chatScroller.appendChild(block);
                 await new Promise(r => setTimeout(r, 3000));
             } else {
                 html += `<div class="text-content">${content}</div></div>`;
                 block.innerHTML += html;
-                document.getElementById('chat-scroller').appendChild(block);
+                chatScroller.appendChild(block);
                 
                 await new Promise(resolve => {
                     const utt = audioMap[idx];
@@ -313,13 +329,12 @@
                 });
                 await new Promise(r => setTimeout(r, 600));
             }
-            document.getElementById('chat-scroller').scrollTo({ top: document.getElementById('chat-scroller').scrollHeight, behavior: 'smooth' });
+            chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
             lastUser = user;
         }
 
         async function autoPlay() {
             for (let i = 0; i < script.length; i++) await render(i);
-            // Stop MP3 capture and export
             processorNode.disconnect();
             exportMp3();
         }
