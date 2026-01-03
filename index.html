@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V53 - Final Stable Build</title>
-    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <title>Discord Portrait V55 - Ultra Stable Build</title>
     <style>
         :root {
             --bg-color: #36393f;
@@ -41,25 +40,22 @@
         .avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #fff; }
         .status-dot { position: absolute; bottom: 2px; right: 2px; width: 24px; height: 24px; background-color: var(--online-green); border-radius: 50%; border: 6px solid var(--bg-color); }
 
-        .msg-body { flex: 1; max-width: 850px; }
-        .user-header { display: flex; align-items: center; margin-bottom: 5px; }
         .username { font-size: 42px; font-weight: bold; margin-right: 15px; } 
         .timestamp { font-size: 26px; color: var(--timestamp-color); }
         .text-content { font-size: 44px; color: var(--text-color); line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; margin: 0; }
 
+        /* Real Ratio Media Fix */
         .media-thumbnail { margin-top: 20px; border-radius: 20px; width: 100%; height: auto; border: 2px solid rgba(255,255,255,0.05); }
 
         #typing-box { padding: 0 115px 20px; font-size: 32px; color: var(--timestamp-color); display: none; }
-        #countdown-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; justify-content: center; align-items: center; font-size: 300px; font-weight: bold; color: var(--blurple); }
+        #countdown-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; justify-content: center; align-items: center; font-size: 250px; font-weight: bold; color: white; }
 
         #overlay, .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; max-height: 80vh; overflow-y: auto;}
         textarea { width: 100%; height: 300px; background: #40444b; color: white; border-radius: 10px; padding: 20px; font-size: 24px; border:none; margin-bottom: 20px; }
         button { padding: 20px 40px; font-size: 24px; font-weight: bold; cursor: pointer; border-radius: 12px; border: none; background: var(--blurple); color: white; width: 100%; margin-bottom: 10px; }
         
-        #progress-container { display: none; margin-top: 20px; }
-        #progress-bar { width: 100%; background: #444; height: 10px; border-radius: 5px; }
-        #progress-fill { width: 0%; height: 100%; background: var(--online-green); border-radius: 5px; transition: width 0.3s; }
+        #status-msg { color: #faa61a; font-weight: bold; margin-bottom: 10px; font-size: 20px; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
     </style>
@@ -70,19 +66,18 @@
 
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & Neural Sync V53</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: Starting now..."></textarea>
+            <h2>📜 Script & Neural Sync V55</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: This version will NOT hang!"></textarea>
             <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
-            <h2>🖼️ Asset Preloader</h2>
-            <p id="pfp-status">⏳ Initializing Character Personalities...</p>
+            <h2>🖼️ Asset Setup</h2>
+            <p id="status-msg">Upload your media files below:</p>
             <div id="media-list" style="margin-bottom: 20px; text-align: left;"></div>
-            <div id="progress-container"><div id="progress-bar"><div id="progress-fill"></div></div></div>
-            <button id="startBtn" onclick="requestFullscreenAndStart()" style="background:#3ba55d; display:none;">🚀 Start Production</button>
+            <button id="startBtn" onclick="initAndStart()" style="background:#3ba55d;">🚀 Start Production</button>
         </div>
     </div>
 
@@ -108,12 +103,9 @@
         const uniqueUsers = new Set();
         let lastUser = null;
 
-        let audioCtx, audioDest, processorNode;
-        let mp3Encoder, mp3Data = [];
-        let srcMsgNode, srcVidNode; 
-        let voices = [];
-        let userVoiceConfig = {};
-        let audioMap = {};
+        // Audio System
+        let audioCtx, audioDest, audioRecorder, audioChunks = [];
+        let voices = [], userVoiceConfig = {};
 
         function getUserColor(name) {
             const colors = ['#5865F2', '#3BA55D', '#FAA61A', '#ED4245', '#EB459E', '#A375FF', '#00AFF4'];
@@ -122,142 +114,86 @@
             return colors[Math.abs(hash) % colors.length];
         }
 
-        async function initSpeech() {
+        async function loadVoices() {
             return new Promise(resolve => {
                 let v = speechSynthesis.getVoices();
-                if (v.length !== 0) { voices = v; resolve(); }
-                else { 
-                    speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); resolve(); }; 
-                    setTimeout(resolve, 1500); // Safety timeout
-                }
+                if (v.length) { voices = v; resolve(); }
+                else { speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); resolve(); }; }
+                setTimeout(resolve, 2000); // Safety
             });
         }
 
-        function assignVoiceProfiles() {
-            const pool = voices.filter(v => v.lang.includes('en'));
-            const males = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Male') || v.name.includes('Guy')));
-            const females = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Female') || v.name.includes('Aria')));
+        function assignVoices() {
+            const azurePool = voices.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && v.lang.includes('en'));
+            const males = azurePool.filter(v => v.name.includes('Male') || v.name.includes('Guy'));
+            const females = azurePool.filter(v => v.name.includes('Female') || v.name.includes('Aria'));
             
             let mIdx = 0, fIdx = 0;
             uniqueUsers.forEach(user => {
                 const name = user.toLowerCase();
-                let config = { pitch: 1.0, rate: 1.0 };
                 const isFemale = (name === 'lolly' || name === 'dozey');
-                const voicePool = isFemale ? (females.length ? females : pool) : (males.length ? males : pool);
-                config.voice = voicePool.length > 0 ? voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)] : pool[0];
-
-                if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; }
-                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.8; }
-                else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; }
-                userVoiceConfig[user] = config;
+                const pool = isFemale ? (females.length ? females : azurePool) : (males.length ? males : azurePool);
+                
+                let cfg = { pitch: 1.0, rate: 1.0, voice: pool.length ? pool[(isFemale?fIdx++:mIdx++) % pool.length] : voices[0] };
+                if (name === 'delulu') { cfg.pitch = 1.3; cfg.rate = 1.1; }
+                if (name === 'sober') { cfg.pitch = 0.7; cfg.rate = 0.8; }
+                userVoiceConfig[user] = cfg;
             });
-        }
-
-        function cleanTextForSpeech(text) {
-            return text.replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").replace(/<media:.*?>/g, "").trim();
         }
 
         function scanAssets() {
             const text = document.getElementById('scriptInput').value;
             script = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
             uniqueUsers.clear();
+            const mediaRegex = /<media:\s*(.*?)\s*>/g;
+            const mediaFiles = new Set();
             script.forEach(line => {
                 const userMatch = line.match(/\[(.*?)\]:/);
                 if (userMatch) uniqueUsers.add(userMatch[1].trim());
-                const mediaMatch = line.match(/<media:\s*(.*?)\s*>/);
-                if (mediaMatch) assetCache[mediaMatch[1]] = null;
+                let m; while ((m = mediaRegex.exec(line)) !== null) mediaFiles.add(m[1]);
             });
 
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('asset-modal').style.display = 'flex';
             const list = document.getElementById('media-list');
             list.innerHTML = "";
-            Object.keys(assetCache).forEach(file => {
+            mediaFiles.forEach(file => {
                 const div = document.createElement('div');
                 div.style.marginBottom = "10px";
                 div.innerHTML = `<label>Upload <b>${file}</b>:</label><br><input type="file" onchange="assetCache['${file}'] = URL.createObjectURL(this.files[0])">`;
                 list.appendChild(div);
             });
-            document.getElementById('startBtn').style.display = 'block';
         }
 
-        async function requestFullscreenAndStart() {
-            const doc = document.documentElement;
-            // Immediate Audio Resume
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        async function initAndStart() {
+            // 1. Audio Setup
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioDest = audioCtx.createMediaStreamDestination();
+                const node = audioCtx.createMediaElementSource(messageSound);
+                node.connect(audioDest); node.connect(audioCtx.destination);
+                
+                const vidPlayer = document.getElementById('overlay-player');
+                const vnode = audioCtx.createMediaElementSource(vidPlayer);
+                vnode.connect(audioDest); vnode.connect(audioCtx.destination);
+            }
+            await audioCtx.resume();
             
-            try {
-                if (doc.requestFullscreen) await doc.requestFullscreen();
-                else if (doc.webkitRequestFullscreen) await doc.webkitRequestFullscreen();
-            } catch (err) { console.warn("Fullscreen denied"); }
-            
-            initProductionAndStart();
-        }
+            // 2. Voice Setup
+            await loadVoices();
+            assignVoices();
+            speechSynthesis.cancel(); // Clear stuck speech
 
-        async function initProductionAndStart() {
-            try {
-                speechSynthesis.cancel(); // Clear any stuck speech queue
+            // 3. Recorder Setup (High-Quality WebM/Ogg which never hangs)
+            audioRecorder = new MediaRecorder(audioDest.stream);
+            audioChunks = [];
+            audioRecorder.ondataavailable = e => audioChunks.push(e.data);
+            audioRecorder.onstop = () => {
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = `discord_audio_${Date.now()}.webm`; a.click();
+            };
 
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-                    audioDest = audioCtx.createMediaStreamDestination();
-                    srcMsgNode = audioCtx.createMediaElementSource(messageSound);
-                    srcMsgNode.connect(audioDest); srcMsgNode.connect(audioCtx.destination);
-                    const vidPlayer = document.getElementById('overlay-player');
-                    srcVidNode = audioCtx.createMediaElementSource(vidPlayer);
-                    srcVidNode.connect(audioDest); srcVidNode.connect(audioCtx.destination);
-                }
-
-                document.getElementById('progress-container').style.display = 'block';
-                const progressFill = document.getElementById('progress-fill');
-
-                await initSpeech();
-                assignVoiceProfiles();
-
-                for (let i = 0; i < script.length; i++) {
-                    const match = script[i].match(/\[(.*?)\]:\s*(.*)/);
-                    if (match) {
-                        const user = match[1].trim();
-                        const txt = cleanTextForSpeech(match[2]);
-                        if (txt) {
-                            const utt = new SpeechSynthesisUtterance(txt);
-                            const cfg = userVoiceConfig[user];
-                            if (cfg) {
-                                utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate;
-                                audioMap[i] = utt;
-                            }
-                        }
-                    }
-                    progressFill.style.width = `${((i+1)/script.length)*100}%`;
-                }
-
-                mp3Encoder = new lamejs.Mp3Encoder(1, 44100, 128);
-                mp3Data = [];
-                processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
-                processorNode.onaudioprocess = (e) => {
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    const pcmData = new Int16Array(inputData.length);
-                    for (let i = 0; i < inputData.length; i++) {
-                        pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                    }
-                    const mp3buf = mp3Encoder.encodeBuffer(pcmData);
-                    if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
-                };
-
-                preloadPfpsAndStart();
-            } catch (err) { alert("Production Error: " + err.message); }
-        }
-
-        async function preloadPfpsAndStart() {
-            const promises = Array.from(uniqueUsers).map(u => new Promise(res => {
-                const img = new Image();
-                img.onload = res; img.onerror = () => {
-                    const low = new Image(); low.onload = res; low.onerror = res;
-                    low.src = `assets/pfps/${u.toLowerCase()}.png`;
-                };
-                img.src = `assets/pfps/${u}.png`;
-            }));
-            await Promise.all(promises);
             document.getElementById('asset-modal').style.display = 'none';
             startCountdown();
         }
@@ -266,41 +202,18 @@
             adjustScale();
             let timer = 5;
             const overlay = document.getElementById('countdown-overlay');
-            overlay.style.display = 'flex'; overlay.innerText = timer;
+            overlay.style.display = 'flex';
             const int = setInterval(() => {
-                timer--;
-                if (timer > 0) overlay.innerText = timer;
-                else { 
-                    clearInterval(int); overlay.style.display = 'none'; 
-                    processorNode.connect(audioCtx.destination);
-                    audioDest.connect(processorNode);
-                    autoPlay(); 
-                }
+                overlay.innerText = timer--;
+                if (timer < 0) { clearInterval(int); overlay.style.display = 'none'; audioRecorder.start(); runChat(); }
             }, 1000);
         }
 
-        async function speakCached(idx) {
-            return new Promise(resolve => {
-                const utterance = audioMap[idx];
-                if (!utterance) return resolve();
-                
-                // Safety Timeout: Never let the render hang
-                const safetyTimeout = setTimeout(() => {
-                    console.warn("Speech timed out for index:", idx);
-                    resolve();
-                }, 10000);
-
-                utterance.onend = () => { clearTimeout(safetyTimeout); resolve(); };
-                utterance.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
-                speechSynthesis.speak(utterance);
-            });
-        }
-
-        async function render(idx) {
-            try {
-                const line = script[idx];
+        async function runChat() {
+            for (let i = 0; i < script.length; i++) {
+                const line = script[i];
                 const match = line.match(/\[(.*?)\]:\s*(.*)/);
-                if (!match) return;
+                if (!match) continue;
 
                 const user = match[1].trim();
                 const content = match[2].trim();
@@ -310,47 +223,47 @@
                 if (!isCompact) {
                     document.getElementById('typer-name').innerText = user;
                     document.getElementById('typing-box').style.display = 'block';
-                    await new Promise(r => setTimeout(r, 900)); 
+                    await new Promise(r => setTimeout(r, 800));
                     document.getElementById('typing-box').style.display = 'none';
                 }
 
                 const block = document.createElement('div');
                 block.className = `msg-block ${isCompact ? 'compact' : ''}`;
-                if (audioCtx.state === 'suspended') await audioCtx.resume();
                 messageSound.currentTime = 0; messageSound.play();
 
                 let html = '';
                 if (!isCompact) {
                     html += `<div class="avatar-container"><img class="avatar" src="assets/pfps/${user.toLowerCase()}.png" onerror="this.src='assets/pfps/default.png'"><div class="status-dot"></div></div>`;
                     html += `<div class="msg-body"><div class="user-header"><span class="username" style="color:${getUserColor(user)}">${user}</span><span class="timestamp">Today at ${chatClock.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span></div>`;
-                } else { html += `<div class="msg-body">`; }
+                } else html += `<div class="msg-body">`;
 
                 if (mediaMatch) {
                     html += `<img class="media-thumbnail" src="${assetCache[mediaMatch[1]] || ''}">`;
-                    block.innerHTML += html + `</div>`;
+                    block.innerHTML = html + `</div>`;
                     document.getElementById('chat-scroller').appendChild(block);
                     await new Promise(r => setTimeout(r, 3000));
                 } else {
                     html += `<div class="text-content">${content}</div></div>`;
-                    block.innerHTML += html;
+                    block.innerHTML = html;
                     document.getElementById('chat-scroller').appendChild(block);
-                    await speakCached(idx); // Controlled await
-                    await new Promise(r => setTimeout(r, 600));
+                    
+                    // Direct Speech Call (No pre-caching to avoid hangs)
+                    await new Promise(res => {
+                        const clean = content.replace(/<media:.*?>/g, "").replace(/\.\.\./g, ", ").replace(/[^\x00-\x7F]/g, "").trim();
+                        if (!clean) return res();
+                        const utt = new SpeechSynthesisUtterance(clean);
+                        const cfg = userVoiceConfig[user];
+                        if (cfg) { utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate; }
+                        utt.onend = res; utt.onerror = res;
+                        setTimeout(res, 8000); // Safety timeout
+                        speechSynthesis.speak(utt);
+                    });
+                    await new Promise(r => setTimeout(r, 500));
                 }
                 document.getElementById('chat-scroller').scrollTo({ top: document.getElementById('chat-scroller').scrollHeight, behavior: 'smooth' });
                 lastUser = user;
-            } catch (err) { console.error("Render Error at index " + idx, err); }
-        }
-
-        async function autoPlay() {
-            for (let i = 0; i < script.length; i++) await render(i);
-            processorNode.disconnect();
-            const mp3buf = mp3Encoder.flush();
-            if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
-            const blob = new Blob(mp3Data, { type: 'audio/mp3' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `discord_audio_${Date.now()}.mp3`; a.click();
+            }
+            audioRecorder.stop();
         }
 
         function adjustScale() {
