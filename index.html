@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V45 - Personalized Neural Voices</title>
+    <title>Discord Portrait V46 - Neural Voice Engine</title>
     <style>
         :root {
             --bg-color: #36393f;
@@ -22,7 +22,7 @@
         }
 
         #render-area { flex: 1; display: flex; justify-content: center; align-items: center; width: 100%; overflow: hidden; }
-        #scale-wrapper { transform-origin: center center; display: flex; transition: transform 0.8s; }
+        #scale-wrapper { transform-origin: center center; display: flex; transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
         
         #render-frame {
             width: 1080px; height: 1920px;
@@ -38,24 +38,36 @@
         
         .avatar-container { position: relative; width: 95px; height: 95px; margin-right: 20px; flex-shrink: 0; }
         .avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #fff; }
-        .status-dot { position: absolute; bottom: 2px; right: 2px; width: 24px; height: 24px; background-color: var(--online-green); border-radius: 50%; border: 6px solid var(--bg-color); }
+        
+        .status-dot {
+            position: absolute; bottom: 2px; right: 2px;
+            width: 24px; height: 24px;
+            background-color: var(--online-green);
+            border-radius: 50%; border: 6px solid var(--bg-color);
+        }
 
+        .msg-body { flex: 1; max-width: 850px; }
+        .user-header { display: flex; align-items: center; margin-bottom: 5px; }
         .username { font-size: 42px; font-weight: bold; margin-right: 15px; } 
         .timestamp { font-size: 26px; color: var(--timestamp-color); }
+
         .text-content { font-size: 44px; color: var(--text-color); line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; margin: 0; }
 
+        /* Media fix: Width same as frame, height automatic */
         .media-thumbnail { margin-top: 20px; border-radius: 20px; width: 100%; height: auto; border: 2px solid rgba(255,255,255,0.05); }
 
         #typing-box { padding: 0 115px 20px; font-size: 32px; color: var(--timestamp-color); display: none; }
-        #countdown-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; justify-content: center; align-items: center; font-size: 150px; font-weight: bold; color: white; text-align: center; }
+
+        #countdown-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 30000; justify-content: center; align-items: center; font-size: 300px; font-weight: bold; color: var(--blurple); }
 
         #overlay, .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); z-index: 20000; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; }
+        .modal-box { background: #2f3136; padding: 40px; border-radius: 20px; width: 85%; text-align: center; max-height: 80vh; overflow-y: auto;}
         textarea { width: 100%; height: 300px; background: #40444b; color: white; border-radius: 10px; padding: 20px; font-size: 24px; border:none; margin-bottom: 20px; }
         button { padding: 20px 40px; font-size: 24px; font-weight: bold; cursor: pointer; border-radius: 12px; border: none; background: var(--blurple); color: white; width: 100%; margin-bottom: 10px; }
         
-        #progress-bar-container { width: 100%; background: #40444b; height: 20px; border-radius: 10px; margin-top: 20px; display: none; }
-        #progress-bar-fill { height: 100%; background: var(--online-green); width: 0%; border-radius: 10px; transition: width 0.3s; }
+        #progress-container { display: none; margin-top: 20px; }
+        #progress-bar { width: 100%; background: #444; height: 10px; border-radius: 5px; }
+        #progress-fill { width: 0%; height: 100%; background: var(--online-green); border-radius: 5px; transition: width 0.3s; }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
     </style>
@@ -66,32 +78,52 @@
 
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & Personality Voices</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: I sound crazy fast!"></textarea>
+            <h2>📜 Script & Audio Engine</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: This should work now!"></textarea>
             <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
-            <h2>🎙️ Audio Processing</h2>
-            <p id="engine-status">Step 1: Assigning personal voices...</p>
+            <h2>🎙️ Voice Processing</h2>
+            <p id="pfp-status">⏳ Processing Character Voices...</p>
             <div id="media-list" style="margin-bottom: 20px;"></div>
-            <div id="progress-bar-container"><div id="progress-bar-fill"></div></div>
-            <button id="startBtn" onclick="startAudioPreCache()" style="background:#3ba55d; display:none;">🔊 Pre-Render & Start</button>
+            <div id="progress-container"><div id="progress-bar"><div id="progress-fill"></div></div></div>
+            <button id="startBtn" onclick="initAudioAndPreCache()" style="background:#3ba55d; display:none;">🚀 Start Production</button>
+        </div>
+    </div>
+
+    <div id="render-area">
+        <div id="scale-wrapper">
+            <div id="render-frame">
+                <video id="overlay-player" crossorigin="anonymous" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; z-index:100; background:#000; display:none;" muted playsinline></video>
+                <div id="chat-scroller"></div>
+                <div id="typing-box"><span id="typer-name"></span> is typing...</div>
+                <div style="height:180px; padding:0 50px 80px; display:flex; align-items:center;">
+                    <div style="background:#40444b; width:100%; height:100px; border-radius:50px; display:flex; align-items:center; padding:0 40px; font-size:36px; color:#72767d;">Message...</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const messageSound = new Audio('assets/sound/message.mp3');
+        messageSound.crossOrigin = "anonymous";
         let script = [];
-        let audioMap = {}; 
-        let userVoiceConfig = {}; // Stores {voice, pitch, rate} for each user
-        let uniqueUsers = new Set();
-        const assetCache = {}; 
-        let voices = [];
-        let chatClock = new Date();
+        let index = -1;
         let lastUser = null;
+        let chatClock = new Date();
+        const assetCache = {}; 
+        const uniqueUsers = new Set();
+        
+        // Voice Variables
+        let voices = [];
+        let userVoiceConfig = {};
+        let audioMap = {}; // Pre-cached utterances
+
+        // Audio Recording Variables
+        let audioCtx, audioDest, audioRecorder, audioChunks = [];
 
         function getUserColor(name) {
             const colors = ['#5865F2', '#3BA55D', '#FAA61A', '#ED4245', '#EB459E', '#A375FF', '#00AFF4'];
@@ -108,31 +140,35 @@
             });
         }
 
-        // --- CHARACTER PERSONALITY ASSIGNMENT ---
-        function assignPersonality() {
+        // Assign proper voice, pitch, and rate based on character gender and personality
+        function assignVoiceProfiles() {
             const males = voices.filter(v => (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Neural')) && v.lang.includes('en'));
-            const females = voices.filter(v => (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Google US English')) && v.lang.includes('en'));
+            const females = voices.filter(v => (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Google')) && v.lang.includes('en'));
             
             let mIdx = 0, fIdx = 0;
 
             uniqueUsers.forEach(user => {
                 const name = user.toLowerCase();
                 let config = { pitch: 1.0, rate: 1.0 };
-
-                // Gender Selection
                 const isFemale = (name === 'lolly' || name === 'dozey');
                 const pool = isFemale ? females : males;
+                
                 config.voice = pool.length > 0 ? pool[isFemale ? (fIdx++ % pool.length) : (mIdx++ % pool.length)] : voices[0];
 
-                // Personality Logic
-                if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; } // Chaotic & High
-                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.8; } // Sleepy & Low
-                else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; } // Sweet
-                else if (name === 'dozey') { config.pitch = 0.8; config.rate = 0.7; } // Slow & Female
-                else if (name === 'squint' || name === 'solulu') { config.pitch = 0.9; config.rate = 1.1; } // Smart & Fast
+                if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; }
+                else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.8; }
+                else if (name === 'lolly') { config.pitch = 1.1; config.rate = 1.0; }
+                else if (name === 'squint' || name === 'solulu') { config.pitch = 0.9; config.rate = 1.1; }
                 
                 userVoiceConfig[user] = config;
             });
+        }
+
+        function getSimulatedTime(idx) {
+            if (idx > 0 && idx % 3 === 0) {
+                chatClock.setMinutes(chatClock.getMinutes() + Math.floor(Math.random() * 2) + 1);
+            }
+            return chatClock.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
 
         function scanAssets() {
@@ -143,58 +179,188 @@
             script.forEach(line => {
                 const userMatch = line.match(/\[(.*?)\]:/);
                 if (userMatch) uniqueUsers.add(userMatch[1].trim());
+                const mediaMatch = line.match(/<media:\s*(.*?)\s*>/);
+                if (mediaMatch) assetCache[mediaMatch[1]] = null;
             });
 
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('asset-modal').style.display = 'flex';
+            const list = document.getElementById('media-list');
+            list.innerHTML = "";
+            Object.keys(assetCache).forEach(file => {
+                const item = document.createElement('div');
+                item.style.marginBottom = "15px";
+                item.innerHTML = `<label style="color:#aaa;">Upload ${file}:</label><br><input type="file" onchange="cacheFile('${file}', this)">`;
+                list.appendChild(item);
+            });
+            
             document.getElementById('startBtn').style.display = 'block';
         }
 
-        async function startAudioPreCache() {
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('progress-bar-container').style.display = 'block';
-            const status = document.getElementById('engine-status');
-            const progressFill = document.getElementById('progress-bar-fill');
-            
-            await initSpeech();
-            assignPersonality();
-
-            for (let i = 0; i < script.length; i++) {
-                const line = script[i];
-                const match = line.match(/\[(.*?)\]:\s*(.*)/);
-                if (!match) continue;
-                
-                const user = match[1].trim();
-                const text = match[2].replace(/<media:.*?>/g, "").replace(/!!!/g, "").replace(/\(|\)/g, "").trim();
-                status.innerText = `Pre-rendering ${user}...`;
-                progressFill.style.width = `${((i+1)/script.length)*100}%`;
-
-                if (text.length > 0) {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    const config = userVoiceConfig[user];
-                    utterance.voice = config.voice;
-                    utterance.pitch = config.pitch;
-                    utterance.rate = config.rate;
-                    audioMap[i] = utterance;
-                    
-                    speechSynthesis.speak(utterance);
-                    speechSynthesis.cancel(); 
-                }
-            }
-
-            status.innerText = "✅ Personalities Synced! Start.";
-            const startProductionBtn = document.createElement('button');
-            startProductionBtn.innerText = "🚀 Start Animation";
-            startProductionBtn.style.background = "#3ba55d";
-            startProductionBtn.onclick = () => {
-                document.getElementById('asset-modal').style.display = 'none';
-                startCountdown();
-            };
-            document.getElementById('asset-modal').querySelector('.modal-box').appendChild(startProductionBtn);
+        function cacheFile(name, input) {
+            const file = input.files[0];
+            if (file) assetCache[name] = URL.createObjectURL(file);
         }
 
-        // Rest of the logic (render, autoPlay, etc.) remains identical to V44
-        // ... (Skipped for brevity, but all fixes from V44 are preserved)
+        // --- PRE-CACHE & INITIALIZE ---
+        async function initAudioAndPreCache() {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('progress-container').style.display = 'block';
+            const progressFill = document.getElementById('progress-fill');
+
+            // Audio API setup
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioDest = audioCtx.createMediaStreamDestination();
+            const sourceMsg = audioCtx.createMediaElementSource(messageSound);
+            sourceMsg.connect(audioDest); sourceMsg.connect(audioCtx.destination);
+            
+            const videoPlayer = document.getElementById('overlay-player');
+            const sourceVid = audioCtx.createMediaElementSource(videoPlayer);
+            sourceVid.connect(audioDest); sourceVid.connect(audioCtx.destination);
+
+            audioRecorder = new MediaRecorder(audioDest.stream);
+            audioChunks = [];
+            audioRecorder.ondataavailable = e => audioChunks.push(e.data);
+            audioRecorder.onstop = exportAudio;
+
+            // Speech Setup
+            await initSpeech();
+            assignVoiceProfiles();
+
+            for (let i = 0; i < script.length; i++) {
+                const match = script[i].match(/\[(.*?)\]:\s*(.*)/);
+                if (match) {
+                    const user = match[1].trim();
+                    const text = match[2].replace(/<media:.*?>/g, "").trim();
+                    if (text.length > 0) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        const config = userVoiceConfig[user];
+                        utterance.voice = config.voice;
+                        utterance.pitch = config.pitch;
+                        utterance.rate = config.rate;
+                        audioMap[i] = utterance;
+                    }
+                }
+                progressFill.style.width = `${((i+1)/script.length)*100}%`;
+            }
+
+            preloadPfpsAndStart();
+        }
+
+        function exportAudio() {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `discord_audio_${Date.now()}.webm`; a.click();
+        }
+
+        async function preloadPfpsAndStart() {
+            const preloadPromises = Array.from(uniqueUsers).map(user => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = resolve;
+                    img.onerror = () => {
+                        const imgLow = new Image();
+                        imgLow.onload = resolve; imgLow.onerror = resolve;
+                        imgLow.src = `assets/pfps/${user.toLowerCase()}.png`;
+                    };
+                    img.src = `assets/pfps/${user}.png`;
+                });
+            });
+            await Promise.all(preloadPromises);
+            document.getElementById('asset-modal').style.display = 'none';
+            prepareAnimation();
+        }
+
+        function prepareAnimation() {
+            document.documentElement.requestFullscreen().catch(()=>{});
+            adjustScale();
+            let timer = 5;
+            const overlay = document.getElementById('countdown-overlay');
+            overlay.style.display = 'flex'; overlay.innerText = timer;
+            const int = setInterval(() => {
+                timer--;
+                if (timer > 0) overlay.innerText = timer;
+                else { 
+                    clearInterval(int); overlay.style.display = 'none'; 
+                    audioRecorder.start(); autoPlay(); 
+                }
+            }, 1000);
+        }
+
+        async function speakCached(idx) {
+            return new Promise(resolve => {
+                const utterance = audioMap[idx];
+                if (!utterance) return resolve();
+                utterance.onend = resolve; utterance.onerror = resolve;
+                speechSynthesis.speak(utterance);
+            });
+        }
+
+        async function render(idx) {
+            const line = script[idx];
+            const match = line.match(/\[(.*?)\]:\s*(.*)/);
+            if (!match) return;
+
+            const user = match[1].trim();
+            const content = match[2].trim();
+            const mediaMatch = content.match(/<media:\s*(.*?)\s*>/);
+            const isCompact = (lastUser && lastUser.toLowerCase() === user.toLowerCase());
+            const chatScroller = document.getElementById('chat-scroller');
+
+            if (!isCompact) {
+                document.getElementById('typer-name').innerText = user;
+                document.getElementById('typing-box').style.display = 'block';
+                await new Promise(r => setTimeout(r, 800)); 
+                document.getElementById('typing-box').style.display = 'none';
+            }
+
+            const block = document.createElement('div');
+            block.className = `msg-block ${isCompact ? 'compact' : ''}`;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            messageSound.currentTime = 0; messageSound.play();
+
+            let html = '';
+            if (!isCompact) {
+                html += `<div class="avatar-container">
+                            <img class="avatar" src="assets/pfps/${user}.png" onerror="this.onerror=null; this.src='assets/pfps/${user.toLowerCase()}.png';">
+                            <div class="status-dot"></div>
+                         </div>`;
+                html += `<div class="msg-body">
+                            <div class="user-header">
+                                <span class="username" style="color:${getUserColor(user)}">${user}</span>
+                                <span class="timestamp">Today at ${getSimulatedTime(idx)}</span>
+                            </div>`;
+            } else { html += `<div class="msg-body">`; }
+
+            if (mediaMatch) {
+                const src = assetCache[mediaMatch[1]] || "";
+                html += `<img class="media-thumbnail" src="${src}">`;
+                block.innerHTML += html + `</div>`;
+                chatScroller.appendChild(block);
+                await new Promise(r => setTimeout(r, 3000));
+            } else {
+                html += `<div class="text-content">${content.replace(/(@\w+)/g, '<span style="color:#00aff4; background:rgba(0,175,244,0.1); padding:0 5px; border-radius:5px;">$1</span>')}</div></div>`;
+                block.innerHTML += html;
+                chatScroller.appendChild(block);
+                await speakCached(idx);
+                await new Promise(r => setTimeout(r, 600));
+            }
+            chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
+            lastUser = user;
+        }
+
+        async function autoPlay() {
+            for (let i = 0; i < script.length; i++) await render(i);
+            if(audioRecorder.state !== "inactive") audioRecorder.stop();
+        }
+
+        function adjustScale() {
+            const scale = Math.min((window.innerWidth - 20) / 1080, (window.innerHeight - 120) / 1920);
+            document.getElementById('scale-wrapper').style.transform = `scale(${scale})`;
+        }
+        window.addEventListener('resize', adjustScale);
+        adjustScale();
     </script>
-    </body>
+</body>
 </html>
