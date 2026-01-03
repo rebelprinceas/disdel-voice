@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Portrait V52 - Fullscreen & Neural MP3</title>
+    <title>Discord Portrait V53 - Final Stable Build</title>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <style>
         :root {
@@ -70,16 +70,16 @@
 
     <div id="overlay">
         <div class="modal-box">
-            <h2>📜 Script & Fullscreen Engine</h2>
-            <textarea id="scriptInput" placeholder="[Delulu]: I'm in Fullscreen now!"></textarea>
-            <button onclick="scanAssets()">Scan Media & Prepare ➡️</button>
+            <h2>📜 Script & Neural Sync V53</h2>
+            <textarea id="scriptInput" placeholder="[Delulu]: Starting now..."></textarea>
+            <button onclick="scanAssets()">Scan Assets & Prepare ➡️</button>
         </div>
     </div>
 
     <div id="asset-modal" class="modal" style="display:none;">
         <div class="modal-box">
             <h2>🖼️ Asset Preloader</h2>
-            <p id="pfp-status">⏳ Processing Neural Personalities...</p>
+            <p id="pfp-status">⏳ Initializing Character Personalities...</p>
             <div id="media-list" style="margin-bottom: 20px; text-align: left;"></div>
             <div id="progress-container"><div id="progress-bar"><div id="progress-fill"></div></div></div>
             <button id="startBtn" onclick="requestFullscreenAndStart()" style="background:#3ba55d; display:none;">🚀 Start Production</button>
@@ -126,14 +126,17 @@
             return new Promise(resolve => {
                 let v = speechSynthesis.getVoices();
                 if (v.length !== 0) { voices = v; resolve(); }
-                else { speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); resolve(); }; }
+                else { 
+                    speechSynthesis.onvoiceschanged = () => { voices = speechSynthesis.getVoices(); resolve(); }; 
+                    setTimeout(resolve, 1500); // Safety timeout
+                }
             });
         }
 
         function assignVoiceProfiles() {
             const pool = voices.filter(v => v.lang.includes('en'));
-            const males = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Andrew')));
-            const females = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Jenny')));
+            const males = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Male') || v.name.includes('Guy')));
+            const females = pool.filter(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && (v.name.includes('Female') || v.name.includes('Aria')));
             
             let mIdx = 0, fIdx = 0;
             uniqueUsers.forEach(user => {
@@ -141,7 +144,7 @@
                 let config = { pitch: 1.0, rate: 1.0 };
                 const isFemale = (name === 'lolly' || name === 'dozey');
                 const voicePool = isFemale ? (females.length ? females : pool) : (males.length ? males : pool);
-                config.voice = voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)];
+                config.voice = voicePool.length > 0 ? voicePool[isFemale ? (fIdx++ % voicePool.length) : (mIdx++ % voicePool.length)] : pool[0];
 
                 if (name === 'delulu') { config.pitch = 1.3; config.rate = 1.1; }
                 else if (name === 'sober') { config.pitch = 0.7; config.rate = 0.8; }
@@ -178,18 +181,23 @@
             document.getElementById('startBtn').style.display = 'block';
         }
 
-        // --- NEW FULLSCREEN TRIGGER ---
         async function requestFullscreenAndStart() {
             const doc = document.documentElement;
+            // Immediate Audio Resume
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            
             try {
                 if (doc.requestFullscreen) await doc.requestFullscreen();
                 else if (doc.webkitRequestFullscreen) await doc.webkitRequestFullscreen();
             } catch (err) { console.warn("Fullscreen denied"); }
+            
             initProductionAndStart();
         }
 
         async function initProductionAndStart() {
             try {
+                speechSynthesis.cancel(); // Clear any stuck speech queue
+
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
                     audioDest = audioCtx.createMediaStreamDestination();
@@ -214,8 +222,10 @@
                         if (txt) {
                             const utt = new SpeechSynthesisUtterance(txt);
                             const cfg = userVoiceConfig[user];
-                            utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate;
-                            audioMap[i] = utt;
+                            if (cfg) {
+                                utt.voice = cfg.voice; utt.pitch = cfg.pitch; utt.rate = cfg.rate;
+                                audioMap[i] = utt;
+                            }
                         }
                     }
                     progressFill.style.width = `${((i+1)/script.length)*100}%`;
@@ -269,55 +279,67 @@
             }, 1000);
         }
 
-        async function render(idx) {
-            const line = script[idx];
-            const match = line.match(/\[(.*?)\]:\s*(.*)/);
-            if (!match) return;
-
-            const user = match[1].trim();
-            const content = match[2].trim();
-            const mediaMatch = content.match(/<media:\s*(.*?)\s*>/);
-            const isCompact = (lastUser && lastUser.toLowerCase() === user.toLowerCase());
-            const chatScroller = document.getElementById('chat-scroller');
-
-            if (!isCompact) {
-                document.getElementById('typer-name').innerText = user;
-                document.getElementById('typing-box').style.display = 'block';
-                await new Promise(r => setTimeout(r, 900)); 
-                document.getElementById('typing-box').style.display = 'none';
-            }
-
-            const block = document.createElement('div');
-            block.className = `msg-block ${isCompact ? 'compact' : ''}`;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            messageSound.currentTime = 0; messageSound.play();
-
-            let html = '';
-            if (!isCompact) {
-                html += `<div class="avatar-container"><img class="avatar" src="assets/pfps/${user.toLowerCase()}.png" onerror="this.src='assets/pfps/default.png'"><div class="status-dot"></div></div>`;
-                html += `<div class="msg-body"><div class="user-header"><span class="username" style="color:${getUserColor(user)}">${user}</span><span class="timestamp">Today at ${chatClock.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span></div>`;
-            } else { html += `<div class="msg-body">`; }
-
-            if (mediaMatch) {
-                html += `<img class="media-thumbnail" src="${assetCache[mediaMatch[1]] || ''}">`;
-                block.innerHTML += html + `</div>`;
-                chatScroller.appendChild(block);
-                await new Promise(r => setTimeout(r, 3000));
-            } else {
-                html += `<div class="text-content">${content}</div></div>`;
-                block.innerHTML += html;
-                chatScroller.appendChild(block);
+        async function speakCached(idx) {
+            return new Promise(resolve => {
+                const utterance = audioMap[idx];
+                if (!utterance) return resolve();
                 
-                await new Promise(resolve => {
-                    const utt = audioMap[idx];
-                    if (!utt) return resolve();
-                    utt.onend = resolve; utt.onerror = resolve;
-                    speechSynthesis.speak(utt);
-                });
-                await new Promise(r => setTimeout(r, 600));
-            }
-            chatScroller.scrollTo({ top: chatScroller.scrollHeight, behavior: 'smooth' });
-            lastUser = user;
+                // Safety Timeout: Never let the render hang
+                const safetyTimeout = setTimeout(() => {
+                    console.warn("Speech timed out for index:", idx);
+                    resolve();
+                }, 10000);
+
+                utterance.onend = () => { clearTimeout(safetyTimeout); resolve(); };
+                utterance.onerror = () => { clearTimeout(safetyTimeout); resolve(); };
+                speechSynthesis.speak(utterance);
+            });
+        }
+
+        async function render(idx) {
+            try {
+                const line = script[idx];
+                const match = line.match(/\[(.*?)\]:\s*(.*)/);
+                if (!match) return;
+
+                const user = match[1].trim();
+                const content = match[2].trim();
+                const mediaMatch = content.match(/<media:\s*(.*?)\s*>/);
+                const isCompact = (lastUser && lastUser.toLowerCase() === user.toLowerCase());
+
+                if (!isCompact) {
+                    document.getElementById('typer-name').innerText = user;
+                    document.getElementById('typing-box').style.display = 'block';
+                    await new Promise(r => setTimeout(r, 900)); 
+                    document.getElementById('typing-box').style.display = 'none';
+                }
+
+                const block = document.createElement('div');
+                block.className = `msg-block ${isCompact ? 'compact' : ''}`;
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
+                messageSound.currentTime = 0; messageSound.play();
+
+                let html = '';
+                if (!isCompact) {
+                    html += `<div class="avatar-container"><img class="avatar" src="assets/pfps/${user.toLowerCase()}.png" onerror="this.src='assets/pfps/default.png'"><div class="status-dot"></div></div>`;
+                    html += `<div class="msg-body"><div class="user-header"><span class="username" style="color:${getUserColor(user)}">${user}</span><span class="timestamp">Today at ${chatClock.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span></div>`;
+                } else { html += `<div class="msg-body">`; }
+
+                if (mediaMatch) {
+                    html += `<img class="media-thumbnail" src="${assetCache[mediaMatch[1]] || ''}">`;
+                    block.innerHTML += html + `</div>`;
+                    document.getElementById('chat-scroller').appendChild(block);
+                    await new Promise(r => setTimeout(r, 3000));
+                } else {
+                    html += `<div class="text-content">${content}</div></div>`;
+                    block.innerHTML += html;
+                    document.getElementById('chat-scroller').appendChild(block);
+                    await speakCached(idx); // Controlled await
+                    await new Promise(r => setTimeout(r, 600));
+                }
+                document.getElementById('chat-scroller').scrollTo({ top: document.getElementById('chat-scroller').scrollHeight, behavior: 'smooth' });
+                lastUser = user;
+            } catch (err) { console.error("Render Error at index " + idx, err); }
         }
 
         async function autoPlay() {
